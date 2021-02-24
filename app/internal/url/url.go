@@ -60,6 +60,9 @@ func (u *service) Create(c *fiber.Ctx) error {
 		return c.JSON(ErrResponse{err.Error()})
 	}
 
+	if req.ExpiryDateMs > 0 && req.ExpiryDateMs <= time.Now().Unix()*int64(time.Millisecond) {
+		return c.JSON(ErrResponse{Error: "expiry_date_ms must be future"})
+	}
 	expiryDate := time.Unix(0, req.ExpiryDateMs*int64(time.Millisecond))
 
 	var shortCode string
