@@ -8,13 +8,13 @@ import (
 	"time"
 )
 
-const regExBlockList = "/facebook/"
+const regExBlockList = "(?:facebook)"
 
 // checkBlockList custom rule for block list validation
 func checkBlockList(value interface{}) error {
 	s, _ := value.(string)
 	match, _ := regexp.MatchString(regExBlockList, s)
-	if !match {
+	if match {
 		return errors.New("url is not allowed")
 	}
 	return nil
