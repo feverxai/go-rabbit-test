@@ -5,6 +5,7 @@ import (
 	"github.com/go-ozzo/ozzo-validation/v4/is"
 	"github.com/gofiber/fiber/v2"
 	"gorm.io/gorm"
+	"net/http"
 	"rabbit-shorten-url/internal/url/models"
 	"time"
 )
@@ -49,7 +50,7 @@ func (u *service) Create(c *fiber.Ctx) error {
 	req := new(CreateRequest)
 
 	if err := c.BodyParser(req); err != nil {
-		return c.JSON(ErrResponse{err.Error()})
+		return c.Status(http.StatusBadRequest).JSON(ErrResponse{err.Error()})
 	}
 
 	if err := validation.Validate(req.Url,
@@ -57,11 +58,11 @@ func (u *service) Create(c *fiber.Ctx) error {
 		validation.By(checkBlockList), // is a block list
 		is.URL,                        // is a valid URL
 	); err != nil {
-		return c.JSON(ErrResponse{err.Error()})
+		return c.Status(http.StatusBadRequest).JSON(ErrResponse{err.Error()})
 	}
 
 	if req.ExpiryDateMs > 0 && req.ExpiryDateMs <= time.Now().Unix()*int64(time.Millisecond) {
-		return c.JSON(ErrResponse{Error: "expiry_date_ms must be future"})
+		return c.Status(http.StatusBadRequest).JSON(ErrResponse{Error: "expiry_date_ms must be future"})
 	}
 	expiryDate := time.Unix(0, req.ExpiryDateMs*int64(time.Millisecond))
 
@@ -84,10 +85,10 @@ func (u *service) Create(c *fiber.Ctx) error {
 
 	result := u.db.Create(&url)
 	if result.Error != nil {
-		return c.JSON(ErrResponse{result.Error.Error()})
+		return c.Status(http.StatusBadRequest).JSON(ErrResponse{result.Error.Error()})
 	}
 
-	return c.JSON(CreateResponse{url.ShortCode})
+	return c.Status(http.StatusCreated).JSON(CreateResponse{url.ShortCode})
 }
 
 // Redirect is used to find valid service from shorten service then redirect to (302)
