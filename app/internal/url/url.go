@@ -1,6 +1,7 @@
 package url
 
 import (
+	"errors"
 	"github.com/go-ozzo/ozzo-validation/v4"
 	"github.com/go-ozzo/ozzo-validation/v4/is"
 	"github.com/gofiber/fiber/v2"
@@ -13,6 +14,7 @@ import (
 type Service interface {
 	Redirect(c *fiber.Ctx) error
 	Create(c *fiber.Ctx) error
+	List(c *fiber.Ctx) error
 }
 
 type service struct {
@@ -41,6 +43,11 @@ type CreateResponse struct {
 type ErrResponse struct {
 	Error string `json:"error"`
 }
+
+var (
+	ErrExpired  = errors.New("expired")
+	ErrNotFound = errors.New("not found")
+)
 
 // Create is used to generate shorten service from request
 func (u *service) Create(c *fiber.Ctx) error {
@@ -92,11 +99,36 @@ func (u *service) Redirect(c *fiber.Ctx) error {
 	u.db.First(&url, "short_code", code)
 
 	if url.ExpiryDate.Sub(time.Now()) <= 0 || url.IsDeleted {
-		return c.Status(fiber.StatusGone).SendString("expired")
+		return c.Status(fiber.StatusGone).JSON(ErrResponse{ErrExpired.Error()})
 	}
 
 	url.Hits += 1
 	u.db.Model(&url).Update("hits", url.Hits)
 
 	return c.Redirect(url.FullUrl)
+}
+
+// List is used to list details by short_code or keyword on full_url
+func (u *service) List(c *fiber.Ctx) error {
+	code := c.Params("code")
+	fullUrl := c.Query("full_url")
+	var url []models.Url
+
+	if code != "" {
+		result := u.db.First(&url, "short_code", code)
+		if result.RowsAffected <= 0 {
+			return c.Status(fiber.StatusNotFound).JSON(ErrResponse{ErrNotFound.Error()})
+		}
+		return c.JSON(url[0])
+	}
+
+	// init chain orm
+	tx := u.db
+	if fullUrl != "" {
+		tx = u.db.Where("full_url LIKE ?", "%"+fullUrl+"%")
+	}
+
+	tx.Find(&url)
+
+	return c.JSON(url)
 }

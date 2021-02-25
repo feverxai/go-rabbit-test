@@ -1,9 +1,11 @@
 package url
 
 import (
+	"encoding/base64"
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/go-ozzo/ozzo-validation/v4/is"
 	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/basicauth"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"gorm.io/driver/mysql"
@@ -203,7 +205,7 @@ func (s *TSuite) TestRedirectUrl_Success() {
 		WithArgs(shortCode).
 		WillReturnRows(rs.AddRow(shortCode, "https://www.google.com", time.Now().Add(time.Hour), hits, 0))
 	s.mock.ExpectExec(regexp.QuoteMeta("UPDATE `urls` SET `hits`=? WHERE `short_code` = ?")).
-		WithArgs(hits + 1).
+		WithArgs(hits+1, shortCode).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 
 	req := httptest.NewRequest("GET", "/"+shortCode, nil)
@@ -212,6 +214,124 @@ func (s *TSuite) TestRedirectUrl_Success() {
 	res, _ := app.Test(req, -1)
 
 	s.Assert().Equal(fiber.StatusFound, res.StatusCode)
+}
+
+func (s *TSuite) TestListUrl_IsNotAuthenticated() {
+	u := New(s.DB)
+	app := fiber.New()
+	admin := app.Group("/admin", basicauth.New(basicauth.Config{
+		Users: map[string]string{
+			"admin": "demo",
+		},
+	}))
+	admin.Get("/list/:code?", u.List)
+
+	req := httptest.NewRequest("GET", "/admin/list", nil)
+	req.Header.Add("Content-Type", "application/json")
+
+	res, _ := app.Test(req, -1)
+
+	s.Assert().Equal(fiber.StatusUnauthorized, res.StatusCode)
+}
+
+func (s *TSuite) TestListUrl_ListAll_Success() {
+	u := New(s.DB)
+	app := fiber.New()
+	admin := app.Group("/admin", basicauth.New(basicauth.Config{
+		Users: map[string]string{
+			"admin": "demo",
+		},
+	}))
+	admin.Get("/list/:code?", u.List)
+
+	rs := sqlmock.NewRows([]string{"short_code", "full_url", "expiry_date", "hits", "is_deleted"})
+	s.mock.ExpectQuery(regexp.QuoteMeta("SELECT * FROM `urls`")).
+		WillReturnRows(rs.AddRow("test", "https://www.google.com", time.Now().Add(time.Hour), 0, 0))
+
+	req := httptest.NewRequest("GET", "/admin/list", nil)
+	req.Header.Add("Content-Type", "application/json")
+	req.Header.Add("Authorization", "Basic "+base64.StdEncoding.EncodeToString([]byte("admin:demo")))
+	res, _ := app.Test(req, -1)
+	body, _ := ioutil.ReadAll(res.Body)
+
+	s.Assert().Equal(fiber.StatusOK, res.StatusCode)
+	s.Assert().Contains(string(body), `test`)
+}
+
+func (s *TSuite) TestListUrl_ListByShortCode_NotFound() {
+	u := New(s.DB)
+	app := fiber.New()
+	admin := app.Group("/admin", basicauth.New(basicauth.Config{
+		Users: map[string]string{
+			"admin": "demo",
+		},
+	}))
+	admin.Get("/list/:code?", u.List)
+
+	shortCode := "test1234"
+	rs := sqlmock.NewRows([]string{"short_code", "full_url", "expiry_date", "hits", "is_deleted"})
+	s.mock.ExpectQuery(regexp.QuoteMeta("SELECT * FROM `urls`  WHERE `short_code` = ?")).
+		WillReturnRows(rs)
+
+	req := httptest.NewRequest("GET", "/admin/list/"+shortCode, nil)
+	req.Header.Add("Content-Type", "application/json")
+	req.Header.Add("Authorization", "Basic "+base64.StdEncoding.EncodeToString([]byte("admin:demo")))
+	res, _ := app.Test(req, -1)
+	body, _ := ioutil.ReadAll(res.Body)
+
+	s.Assert().Equal(fiber.StatusNotFound, res.StatusCode)
+	s.Assert().Contains(string(body), ErrNotFound.Error())
+}
+
+func (s *TSuite) TestListUrl_ListByShortCode_Success() {
+	u := New(s.DB)
+	app := fiber.New()
+	admin := app.Group("/admin", basicauth.New(basicauth.Config{
+		Users: map[string]string{
+			"admin": "demo",
+		},
+	}))
+	admin.Get("/list/:code?", u.List)
+
+	shortCode := "test1234"
+	rs := sqlmock.NewRows([]string{"short_code", "full_url", "expiry_date", "hits", "is_deleted"})
+	s.mock.ExpectQuery(regexp.QuoteMeta("SELECT * FROM `urls`  WHERE `short_code` = ?")).
+		WillReturnRows(rs.AddRow(shortCode, "https://www.google.com", time.Now().Add(time.Hour), 0, 0))
+
+	req := httptest.NewRequest("GET", "/admin/list/"+shortCode, nil)
+	req.Header.Add("Content-Type", "application/json")
+	req.Header.Add("Authorization", "Basic "+base64.StdEncoding.EncodeToString([]byte("admin:demo")))
+	res, _ := app.Test(req, -1)
+	body, _ := ioutil.ReadAll(res.Body)
+
+	s.Assert().Equal(fiber.StatusOK, res.StatusCode)
+	s.Assert().Contains(string(body), shortCode)
+}
+
+func (s *TSuite) TestListUrl_ListByFullUrlKeyword_Success() {
+	u := New(s.DB)
+	app := fiber.New()
+	admin := app.Group("/admin", basicauth.New(basicauth.Config{
+		Users: map[string]string{
+			"admin": "demo",
+		},
+	}))
+	admin.Get("/list/:code?", u.List)
+
+	fullUrl := "google"
+	rs := sqlmock.NewRows([]string{"short_code", "full_url", "expiry_date", "hits", "is_deleted"})
+	s.mock.ExpectQuery(regexp.QuoteMeta("SELECT * FROM `urls` WHERE full_url LIKE ?")).
+		WithArgs("%" + fullUrl + "%").
+		WillReturnRows(rs.AddRow("test1234", "https://www.google.com", time.Now().Add(time.Hour), 0, 0))
+
+	req := httptest.NewRequest("GET", "/admin/list?full_url="+fullUrl, nil)
+	req.Header.Add("Content-Type", "application/json")
+	req.Header.Add("Authorization", "Basic "+base64.StdEncoding.EncodeToString([]byte("admin:demo")))
+	res, _ := app.Test(req, -1)
+	body, _ := ioutil.ReadAll(res.Body)
+
+	s.Assert().Equal(fiber.StatusOK, res.StatusCode)
+	s.Assert().Contains(string(body), fullUrl)
 }
 
 func (s *TSuite) AfterTest(_, _ string) {

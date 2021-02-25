@@ -2,6 +2,7 @@ package main
 
 import (
 	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/basicauth"
 	"github.com/gofiber/fiber/v2/middleware/logger"
 	"log"
 	"rabbit-shorten-url/internal/db/mysql"
@@ -36,6 +37,14 @@ func Setup() *fiber.App {
 
 	app.Get("/:code", urlService.Redirect)
 	app.Post("/", urlService.Create)
+
+	// group route for admin auth
+	admin := app.Group("/admin", basicauth.New(basicauth.Config{
+		Users: map[string]string{
+			"admin": "demo",
+		},
+	}))
+	admin.Get("/list/:code?", urlService.List)
 
 	return app
 }
