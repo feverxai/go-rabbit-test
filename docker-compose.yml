@@ -13,11 +13,12 @@ services:
       - "6603:3306"
     volumes:
       - ./mysql/:/docker-entrypoint-initdb.d
+    networks:
+      - my-network
+
   phpmyadmin:
     image: phpmyadmin
     container_name: pma
-    links:
-      - db
     environment:
       PMA_HOST: db
       PMA_PORT: 3306
@@ -25,3 +26,29 @@ services:
     restart: always
     ports:
       - 8081:80
+    networks:
+      - my-network
+
+  app:
+    build:
+      context: ./app/
+      dockerfile: Dockerfile
+    image: rabbit-api
+    container_name: rabbit-api
+    restart: unless-stopped
+    environment:
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_USERNAME: rabbit
+      DB_PASSWORD: password
+      DB_DATABASE: rabbit
+    ports:
+      - "3000:3000"
+    depends_on:
+      - db
+    networks:
+      - my-network
+
+networks:
+  my-network:
+    driver: bridge

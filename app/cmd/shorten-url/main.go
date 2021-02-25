@@ -24,7 +24,7 @@ func main() {
 	})
 	dbClient, err := db.Connect()
 	if err != nil {
-		log.Panic(err)
+		log.Fatal(err)
 	}
 
 	app := Setup(dbClient)
