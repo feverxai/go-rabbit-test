@@ -91,5 +91,12 @@ func (u *service) Redirect(c *fiber.Ctx) error {
 	var url models.Url
 	u.db.First(&url, "short_code", code)
 
+	if url.ExpiryDate.Sub(time.Now()) <= 0 || url.IsDeleted {
+		return c.Status(fiber.StatusGone).SendString("expired")
+	}
+
+	url.Hits += 1
+	u.db.Model(&url).Update("hits", url.Hits)
+
 	return c.Redirect(url.FullUrl)
 }
