@@ -9,6 +9,11 @@ import (
 )
 
 func main() {
+	app := Setup()
+	log.Fatal(app.Listen(":3000"))
+}
+
+func Setup() *fiber.App {
 	app := fiber.New()
 	db := mysql.New(mysql.Config{
 		Username: "rabbit",
@@ -32,5 +37,5 @@ func main() {
 	app.Get("/:code", urlService.Redirect)
 	app.Post("/", urlService.Create)
 
-	log.Fatal(app.Listen(":3000"))
+	return app
 }

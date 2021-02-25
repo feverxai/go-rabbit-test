@@ -5,7 +5,6 @@ import (
 	"github.com/go-ozzo/ozzo-validation/v4/is"
 	"github.com/gofiber/fiber/v2"
 	"gorm.io/gorm"
-	"net/http"
 	"rabbit-shorten-url/internal/url/models"
 	"time"
 )
@@ -27,10 +26,10 @@ func New(dbClient *gorm.DB) *service {
 	}
 }
 
-// CreateRequest handle incoming post request to create new shorten url with expiry date ms (epoch millisecond)
+// CreateRequest handle incoming post request to create new shorten url with expiry (hour)
 type CreateRequest struct {
-	Url          string `json:"url"`
-	ExpiryDateMs int64  `json:"expiry_date_ms"`
+	Url    string        `json:"url"`
+	Expiry time.Duration `json:"expiry"`
 }
 
 // CreateResponse return shorten url of incoming request
@@ -50,7 +49,7 @@ func (u *service) Create(c *fiber.Ctx) error {
 	req := new(CreateRequest)
 
 	if err := c.BodyParser(req); err != nil {
-		return c.Status(http.StatusBadRequest).JSON(ErrResponse{err.Error()})
+		return c.Status(fiber.StatusBadRequest).JSON(ErrResponse{err.Error()})
 	}
 
 	if err := validation.Validate(req.Url,
@@ -58,13 +57,10 @@ func (u *service) Create(c *fiber.Ctx) error {
 		validation.By(checkBlockList), // is a block list
 		is.URL,                        // is a valid URL
 	); err != nil {
-		return c.Status(http.StatusBadRequest).JSON(ErrResponse{err.Error()})
+		return c.Status(fiber.StatusBadRequest).JSON(ErrResponse{err.Error()})
 	}
 
-	if req.ExpiryDateMs > 0 && req.ExpiryDateMs <= time.Now().Unix()*int64(time.Millisecond) {
-		return c.Status(http.StatusBadRequest).JSON(ErrResponse{Error: "expiry_date_ms must be future"})
-	}
-	expiryDate := time.Unix(0, req.ExpiryDateMs*int64(time.Millisecond))
+	expiryDate := time.Now().Add(req.Expiry * time.Hour)
 
 	var shortCode string
 	isShortCodeDuplicated := true
@@ -83,12 +79,9 @@ func (u *service) Create(c *fiber.Ctx) error {
 		ExpiryDate: expiryDate,
 	}
 
-	result := u.db.Create(&url)
-	if result.Error != nil {
-		return c.Status(http.StatusBadRequest).JSON(ErrResponse{result.Error.Error()})
-	}
+	u.db.Create(&url)
 
-	return c.Status(http.StatusCreated).JSON(CreateResponse{url.ShortCode})
+	return c.Status(fiber.StatusCreated).JSON(CreateResponse{c.Hostname() + "/" + url.ShortCode})
 }
 
 // Redirect is used to find valid service from shorten service then redirect to (302)

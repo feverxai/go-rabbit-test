@@ -10,12 +10,17 @@ import (
 
 const regExBlockList = "(?:facebook)"
 
+var (
+	// ErrURLBlockList is the error in case of url is match with regExBlockList
+	ErrURLBlockList = errors.New("url is not allowed")
+)
+
 // checkBlockList custom rule for block list validation
 func checkBlockList(value interface{}) error {
 	s, _ := value.(string)
 	match, _ := regexp.MatchString(regExBlockList, s)
 	if match {
-		return errors.New("url is not allowed")
+		return ErrURLBlockList
 	}
 	return nil
 }
