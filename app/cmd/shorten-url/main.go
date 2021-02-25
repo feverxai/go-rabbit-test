@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/basicauth"
+	"github.com/gofiber/fiber/v2/middleware/cache"
 	"github.com/gofiber/fiber/v2/middleware/logger"
 	"gorm.io/gorm"
 	"log"
@@ -11,6 +12,7 @@ import (
 	"os/signal"
 	"rabbit-shorten-url/internal/db/mysql"
 	"rabbit-shorten-url/internal/url"
+	"time"
 )
 
 func main() {
@@ -53,6 +55,9 @@ func Setup(dbClient *gorm.DB) *fiber.App {
 	urlService := url.New(dbClient)
 
 	app.Use(logger.New())
+	app.Use(cache.New(cache.Config{
+		Expiration: 30 * time.Minute,
+	}))
 
 	app.Get("/", func(c *fiber.Ctx) error {
 		return c.SendString("Hello, World!")
