@@ -44,7 +44,8 @@ func Setup() *fiber.App {
 			"admin": "demo",
 		},
 	}))
-	admin.Get("/list/:code?", urlService.List)
+	admin.Get("/urls/:code?", urlService.List)
+	admin.Delete("/urls/:code", urlService.SoftDelete)
 
 	return app
 }

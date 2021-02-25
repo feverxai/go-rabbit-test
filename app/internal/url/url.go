@@ -15,6 +15,7 @@ type Service interface {
 	Redirect(c *fiber.Ctx) error
 	Create(c *fiber.Ctx) error
 	List(c *fiber.Ctx) error
+	SoftDelete(c *fiber.Ctx) error
 }
 
 type service struct {
@@ -42,6 +43,11 @@ type CreateResponse struct {
 // ErrResponse return error response with message
 type ErrResponse struct {
 	Error string `json:"error"`
+}
+
+// SuccessResponse return response with message
+type SuccessResponse struct {
+	Message string `json:"message"`
 }
 
 var (
@@ -131,4 +137,16 @@ func (u *service) List(c *fiber.Ctx) error {
 	tx.Find(&url)
 
 	return c.JSON(url)
+}
+
+// SoftDelete is used to mark flag is_deleted = true by short_code
+func (u *service) SoftDelete(c *fiber.Ctx) error {
+	code := c.Params("code")
+
+	result := u.db.Model(&models.Url{}).Where("short_code = ?", code).Update("is_deleted", true)
+	if result.RowsAffected <= 0 {
+		return c.Status(fiber.StatusNotFound).JSON(ErrResponse{ErrNotFound.Error()})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(SuccessResponse{code + " has been deleted"})
 }
