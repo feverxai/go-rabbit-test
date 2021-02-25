@@ -7,7 +7,8 @@ import (
 )
 
 type MySql interface {
-	Connect() *gorm.DB
+	Connect() (*gorm.DB, error)
+	Close(db *gorm.DB) error
 }
 
 type service struct {
@@ -23,5 +24,31 @@ func New(config Config) *service {
 func (s *service) Connect() (*gorm.DB, error) {
 	// refer https://github.com/go-sql-driver/mysql#dsn-data-source-name for details
 	dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?charset=utf8mb4&parseTime=True&loc=Local", s.Username, s.Password, s.Ip, s.Port, s.Database)
-	return gorm.Open(mysql.Open(dsn), &gorm.Config{})
+	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{})
+	if err != nil {
+		return nil, err
+	}
+	// ping
+	sqlDB, err := db.DB()
+	if err != nil {
+		return nil, err
+	}
+	err = sqlDB.Ping()
+	if err != nil {
+		return nil, err
+	}
+
+	return db, nil
+}
+
+func (s *service) Close(db *gorm.DB) error {
+	sqlDB, err := db.DB()
+	if err != nil {
+		return err
+	}
+	err = sqlDB.Close()
+	if err != nil {
+		return err
+	}
+	return nil
 }

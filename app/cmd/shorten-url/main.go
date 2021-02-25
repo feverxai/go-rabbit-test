@@ -1,32 +1,55 @@
 package main
 
 import (
+	"fmt"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/basicauth"
 	"github.com/gofiber/fiber/v2/middleware/logger"
+	"gorm.io/gorm"
 	"log"
+	"os"
+	"os/signal"
 	"rabbit-shorten-url/internal/db/mysql"
 	"rabbit-shorten-url/internal/url"
 )
 
 func main() {
-	app := Setup()
-	log.Fatal(app.Listen(":3000"))
-}
 
-func Setup() *fiber.App {
-	app := fiber.New()
 	db := mysql.New(mysql.Config{
-		Username: "rabbit",
-		Password: "password",
-		Database: "rabbit",
-		Ip:       "localhost",
-		Port:     "6603",
+		Username: os.Getenv("DB_USERNAME"),
+		Password: os.Getenv("DB_PASSWORD"),
+		Database: os.Getenv("DB_DATABASE"),
+		Ip:       os.Getenv("DB_HOST"),
+		Port:     os.Getenv("DB_PORT"),
 	})
 	dbClient, err := db.Connect()
 	if err != nil {
-		panic(err)
+		log.Panic(err)
 	}
+
+	app := Setup(dbClient)
+
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, os.Interrupt)
+	go func() {
+		_ = <-c
+		fmt.Println("Gracefully shutting down...")
+		_ = app.Shutdown()
+	}()
+
+	if err := app.Listen(":3000"); err != nil {
+		log.Panic(err)
+	}
+
+	fmt.Println("Running cleanup tasks...")
+	if err := db.Close(dbClient); err != nil {
+		log.Panic(err)
+	}
+}
+
+func Setup(dbClient *gorm.DB) *fiber.App {
+	app := fiber.New()
+
 	urlService := url.New(dbClient)
 
 	app.Use(logger.New())
