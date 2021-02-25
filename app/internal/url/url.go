@@ -73,7 +73,11 @@ func (u *service) Create(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(ErrResponse{err.Error()})
 	}
 
-	expiryDate := time.Now().Add(req.Expiry * time.Hour)
+	var expiryDate *time.Time
+	if req.Expiry > 0 {
+		exp := time.Now().Add(req.Expiry * time.Hour)
+		expiryDate = &exp
+	}
 
 	var shortCode string
 	isShortCodeDuplicated := true
@@ -104,7 +108,7 @@ func (u *service) Redirect(c *fiber.Ctx) error {
 	var url models.Url
 	u.db.First(&url, "short_code", code)
 
-	if url.ExpiryDate.Sub(time.Now()) <= 0 || url.IsDeleted {
+	if url.ExpiryDate != nil && (url.ExpiryDate.Sub(time.Now()) <= 0 || url.IsDeleted) {
 		return c.Status(fiber.StatusGone).JSON(ErrResponse{ErrExpired.Error()})
 	}
 

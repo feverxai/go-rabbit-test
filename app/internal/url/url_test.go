@@ -203,7 +203,7 @@ func (s *TSuite) TestRedirectUrl_Success() {
 	rs := sqlmock.NewRows([]string{"short_code", "full_url", "expiry_date", "hits", "is_deleted"})
 	s.mock.ExpectQuery(regexp.QuoteMeta("SELECT * FROM `urls` WHERE `short_code` = ? ORDER BY `urls`.`short_code` LIMIT 1")).
 		WithArgs(shortCode).
-		WillReturnRows(rs.AddRow(shortCode, "https://www.google.com", time.Now().Add(time.Hour), hits, 0))
+		WillReturnRows(rs.AddRow(shortCode, "https://www.google.com", nil, hits, 0))
 	s.mock.ExpectExec(regexp.QuoteMeta("UPDATE `urls` SET `hits`=? WHERE `short_code` = ?")).
 		WithArgs(hits+1, shortCode).
 		WillReturnResult(sqlmock.NewResult(0, 1))

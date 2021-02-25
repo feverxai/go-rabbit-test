@@ -30,7 +30,7 @@ SET time_zone = "+00:00";
 CREATE TABLE `urls` (
   `short_code` varchar(32) NOT NULL,
   `full_url` varchar(2000) NOT NULL,
-  `expiry_date` datetime NOT NULL,
+  `expiry_date` datetime,
   `hits` int NOT NULL,
   `is_deleted` tinyint(1) NOT NULL DEFAULT '0'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
